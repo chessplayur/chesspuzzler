@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Randomized Chess Training</title>
+    <title>Drag & Drop Chess Puzzles</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -180,7 +180,7 @@
     const evaluationFeedbackEl = document.getElementById('evaluation-feedback');
     const submitGuessBtn = document.getElementById('submit-guess');
     const prevPuzzleEvalBtn = document.getElementById('prev-puzzle-eval');
-    const nextPuzzleEvalBtn = document.getElementById('next-puzzle-eval');
+    const nextPuzzleEvalBtn = document = document.getElementById('next-puzzle-eval');
 
 
     const pieces = {
@@ -449,12 +449,15 @@
     }
 
     function updateNavigationButtons() {
+        // Handle visibility and disabled state for move puzzle buttons
         prevPuzzleBtn.disabled = (currentPuzzleIndex === 0);
         nextPuzzleBtn.disabled = (currentPuzzleIndex === allPuzzles.length - 1);
+        
+        // Handle visibility and disabled state for evaluation puzzle buttons
         prevPuzzleEvalBtn.disabled = (currentPuzzleIndex === 0);
         nextPuzzleEvalBtn.disabled = (currentPuzzleIndex === allPuzzles.length - 1);
 
-        // Hide the incorrect nav buttons based on puzzle type
+        // Hide the irrelevant nav buttons based on puzzle type
         if (currentPuzzle.type === 'move') {
             prevPuzzleBtn.style.display = 'inline-block';
             nextPuzzleBtn.style.display = 'inline-block';
