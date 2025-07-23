@@ -65,24 +65,25 @@
             background-color: #6a9c78 !important;
         }
 
-        #puzzle-info {
+        #puzzle-info, #evaluation-container {
             max-width: 300px;
             background-color: #444;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             text-align: center;
+            display: none; /* Hidden by default, shown by JS */
         }
         h1 {
             margin: 0 0 15px 0;
             color: #eee;
         }
-        #puzzle-description {
+        #puzzle-description, #evaluation-description {
             font-size: 1.1em;
             margin-bottom: 20px;
             min-height: 40px;
         }
-        #feedback {
+        #feedback, #evaluation-feedback {
             font-size: 1.2em;
             font-weight: bold;
             min-height: 30px;
@@ -118,12 +119,28 @@
             background-color: #777;
             cursor: not-allowed;
         }
+
+        #evaluation-guess {
+            width: 80px;
+            padding: 8px;
+            font-size: 1.1em;
+            text-align: center;
+            border-radius: 5px;
+            border: 1px solid #777;
+            background-color: #555;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+        #submit-guess {
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
     <div id="chessboard"></div>
+    
     <div id="puzzle-info">
         <h1>Chess Puzzle</h1>
         <div id="puzzle-description"></div>
@@ -134,15 +151,37 @@
             <button id="next-puzzle">Next &gt;</button>
         </div>
     </div>
+
+    <div id="evaluation-container">
+        <h1>Guess the Evaluation</h1>
+        <div id="evaluation-description"></div>
+        <input type="number" id="evaluation-guess" placeholder="Your guess (centipawns)">
+        <div id="evaluation-feedback"></div>
+        <button id="submit-guess">Submit Guess</button>
+        <div class="puzzle-nav-buttons">
+            <button id="prev-puzzle-eval" disabled>&lt; Previous</button>
+            <button id="next-puzzle-eval">Next &gt;</button>
+        </div>
+    </div>
 </div>
 
 <script>
     const chessboard = document.getElementById('chessboard');
+    const puzzleInfoEl = document.getElementById('puzzle-info');
     const descriptionEl = document.getElementById('puzzle-description');
     const feedbackEl = document.getElementById('feedback');
     const restartBtn = document.getElementById('restart-puzzle');
     const prevPuzzleBtn = document.getElementById('prev-puzzle');
     const nextPuzzleBtn = document.getElementById('next-puzzle');
+
+    const evaluationContainerEl = document.getElementById('evaluation-container');
+    const evaluationDescriptionEl = document.getElementById('evaluation-description');
+    const evaluationGuessInput = document.getElementById('evaluation-guess');
+    const evaluationFeedbackEl = document.getElementById('evaluation-feedback');
+    const submitGuessBtn = document.getElementById('submit-guess');
+    const prevPuzzleEvalBtn = document.getElementById('prev-puzzle-eval');
+    const nextPuzzleEvalBtn = document.getElementById('next-puzzle-eval');
+
 
     const pieces = {
         'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
@@ -152,6 +191,7 @@
     // --- ALL PUZZLES DEFINED HERE ---
     const allPuzzles = [
         {
+            type: 'move',
             name: "Original Puzzle",
             startFen: '4r1k1/p1pq2pp/1p1ppr2/n4p2/P1PP1P2/2PBPQ2/6PP/R3R1K1 w - - 2 19',
             solution: [
@@ -159,25 +199,30 @@
             ]
         },
         {
+            type: 'move',
             name: "King to E5 Puzzle",
             startFen: '6k1/p4p1p/2p4r/2Np1b2/3K1p1P/P2B2n1/1PPR2P1/8 w - - 6 30',
             solution: [
                 { move: 'Ke5', from: 'd4', to: 'e5', description: "New Puzzle: White to move. Find the best move for White." },
                 { move: 'Bxd3', from: 'f5', to: 'd3', description: "What piece should White capture with?", opponentMove: true }, 
-                { move: 'cxd3', from: 'c2', to: 'd3', description: "White to play" }       
+                { move: 'cxd3', from: 'c2', to: 'd3', description: "White to play" }    
             ]
+        },
+        {
+            type: 'evaluation',
+            name: "Evaluation Puzzle 1",
+            startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            description: "Guess the evaluation of the starting position (0 for equal, positive for White advantage, negative for Black advantage, in centipawns).",
+            evaluation: 0 // Starting position is equal
+        },
+        {
+            type: 'evaluation',
+            name: "Evaluation Puzzle 2 (White Advantage)",
+            startFen: 'r1bqkb1r/pp3ppp/2n2n2/3p4/3P4/2N2N2/PP3PPP/R1BQKB1R w KQkq - 0 7',
+            description: "Estimate the evaluation of this position for White (in centipawns).",
+            evaluation: 50 // Example: White has a slight advantage (e.g., +0.50)
         }
         // Add more puzzles here in the same format
-        /*
-        ,
-        {
-            name: "Another Puzzle",
-            startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-            solution: [
-                { move: 'e4', from: 'e2', to: 'e4', description: "Another Puzzle: White to move. Play e4." }
-            ]
-        }
-        */
     ];
 
     let currentPuzzleIndex = 0; // Start with the first puzzle
@@ -185,7 +230,7 @@
     let currentStepIndex = 0;
     let draggedElement = null;
     let startSquareIndex = null;
-    let puzzleActive = true;
+    let puzzleActive = true; // Controls drag & drop for move puzzles
 
     function algebraicToIndex(alg) {
         if (!alg || alg.length < 2) return -1;
@@ -213,14 +258,28 @@
     }
 
     function loadPuzzle() {
-        currentPuzzle = allPuzzles[currentPuzzleIndex]; // Get the current puzzle object
+        currentPuzzle = allPuzzles[currentPuzzleIndex]; 
         currentStepIndex = 0;
-        puzzleActive = true;
         feedbackEl.textContent = '';
         feedbackEl.className = '';
-        descriptionEl.textContent = currentPuzzle.solution[0].description; // Use currentPuzzle
+        evaluationFeedbackEl.textContent = '';
+        evaluationFeedbackEl.className = '';
+        evaluationGuessInput.value = '';
+        
+        // Hide/show relevant sections
+        if (currentPuzzle.type === 'move') {
+            puzzleInfoEl.style.display = 'block';
+            evaluationContainerEl.style.display = 'none';
+            puzzleActive = true;
+            descriptionEl.textContent = currentPuzzle.solution[0].description;
+        } else if (currentPuzzle.type === 'evaluation') {
+            puzzleInfoEl.style.display = 'none';
+            evaluationContainerEl.style.display = 'block';
+            puzzleActive = false; // Disable drag & drop for evaluation puzzles
+            evaluationDescriptionEl.textContent = currentPuzzle.description;
+        }
 
-        const fenParts = currentPuzzle.startFen.split(' '); // Use currentPuzzle
+        const fenParts = currentPuzzle.startFen.split(' '); 
         const boardState = fenParts[0];
 
         document.querySelectorAll('.square').forEach(sq => {
@@ -308,7 +367,9 @@
     }
 
     function checkSolution(fromIndex, toIndex) {
-        const currentMove = currentPuzzle.solution[currentStepIndex]; // Use currentPuzzle
+        if (currentPuzzle.type !== 'move') return; // Only check moves for 'move' type puzzles
+
+        const currentMove = currentPuzzle.solution[currentStepIndex]; 
         const expectedFromIndex = algebraicToIndex(currentMove.from);
         const expectedToIndex = algebraicToIndex(currentMove.to);
 
@@ -330,7 +391,7 @@
 
         currentStepIndex++;
 
-        if (currentStepIndex >= currentPuzzle.solution.length) { // Use currentPuzzle
+        if (currentStepIndex >= currentPuzzle.solution.length) { 
             feedbackEl.textContent = 'Puzzle Complete!';
             feedbackEl.className = 'success';
             descriptionEl.textContent = "Sequence solved!";
@@ -339,7 +400,7 @@
         }
 
         setTimeout(() => {
-            const opponentMove = currentPuzzle.solution[currentStepIndex]; // Use currentPuzzle
+            const opponentMove = currentPuzzle.solution[currentStepIndex]; 
             if (opponentMove && opponentMove.opponentMove) {
                 const oppFromIdx = algebraicToIndex(opponentMove.from);
                 const oppToIdx = algebraicToIndex(opponentMove.to);
@@ -355,8 +416,8 @@
                 highlightMove(oppFromIdx, oppToIdx, true);
                 currentStepIndex++;
 
-                if(currentStepIndex < currentPuzzle.solution.length) { // Use currentPuzzle
-                    descriptionEl.textContent = currentPuzzle.solution[currentStepIndex].description; // Use currentPuzzle
+                if(currentStepIndex < currentPuzzle.solution.length) { 
+                    descriptionEl.textContent = currentPuzzle.solution[currentStepIndex].description; 
                 } else {
                     feedbackEl.textContent = 'Puzzle Complete!';
                     feedbackEl.className = 'success';
@@ -390,17 +451,33 @@
     function updateNavigationButtons() {
         prevPuzzleBtn.disabled = (currentPuzzleIndex === 0);
         nextPuzzleBtn.disabled = (currentPuzzleIndex === allPuzzles.length - 1);
+        prevPuzzleEvalBtn.disabled = (currentPuzzleIndex === 0);
+        nextPuzzleEvalBtn.disabled = (currentPuzzleIndex === allPuzzles.length - 1);
+
+        // Hide the incorrect nav buttons based on puzzle type
+        if (currentPuzzle.type === 'move') {
+            prevPuzzleBtn.style.display = 'inline-block';
+            nextPuzzleBtn.style.display = 'inline-block';
+            prevPuzzleEvalBtn.style.display = 'none';
+            nextPuzzleEvalBtn.style.display = 'none';
+        } else if (currentPuzzle.type === 'evaluation') {
+            prevPuzzleBtn.style.display = 'none';
+            nextPuzzleBtn.style.display = 'none';
+            prevPuzzleEvalBtn.style.display = 'inline-block';
+            nextPuzzleEvalBtn.style.display = 'inline-block';
+        }
     }
 
+    // Event Listeners for Move Puzzles
     restartBtn.addEventListener('click', () => {
         createBoard();
-        loadPuzzle(); // Reloads the current puzzle
+        loadPuzzle(); 
     });
 
     nextPuzzleBtn.addEventListener('click', () => {
         if (currentPuzzleIndex < allPuzzles.length - 1) {
             currentPuzzleIndex++;
-            createBoard(); // Clear board before loading new puzzle
+            createBoard(); 
             loadPuzzle();
         }
     });
@@ -408,14 +485,55 @@
     prevPuzzleBtn.addEventListener('click', () => {
         if (currentPuzzleIndex > 0) {
             currentPuzzleIndex--;
-            createBoard(); // Clear board before loading new puzzle
+            createBoard(); 
+            loadPuzzle();
+        }
+    });
+
+    // Event Listeners for Evaluation Puzzles
+    submitGuessBtn.addEventListener('click', () => {
+        if (currentPuzzle.type !== 'evaluation') return;
+
+        const userGuess = parseInt(evaluationGuessInput.value);
+        const correctEvaluation = currentPuzzle.evaluation;
+
+        if (isNaN(userGuess)) {
+            evaluationFeedbackEl.textContent = 'Please enter a number.';
+            evaluationFeedbackEl.className = 'incorrect';
+            return;
+        }
+
+        // Define a tolerance, e.g., +/- 100 centipawns (1 pawn)
+        const tolerance = 100; 
+
+        if (Math.abs(userGuess - correctEvaluation) <= tolerance) {
+            evaluationFeedbackEl.textContent = `Correct! The evaluation is ${correctEvaluation} centipawns.`;
+            evaluationFeedbackEl.className = 'correct';
+        } else {
+            evaluationFeedbackEl.textContent = `Incorrect. The correct evaluation is ${correctEvaluation} centipawns.`;
+            evaluationFeedbackEl.className = 'incorrect';
+        }
+    });
+
+    nextPuzzleEvalBtn.addEventListener('click', () => {
+        if (currentPuzzleIndex < allPuzzles.length - 1) {
+            currentPuzzleIndex++;
+            createBoard();
+            loadPuzzle();
+        }
+    });
+
+    prevPuzzleEvalBtn.addEventListener('click', () => {
+        if (currentPuzzleIndex > 0) {
+            currentPuzzleIndex--;
+            createBoard();
             loadPuzzle();
         }
     });
 
     // Initial load
     createBoard();
-    loadPuzzle(); // Load the first puzzle
+    loadPuzzle(); 
 </script>
 
 </body>
