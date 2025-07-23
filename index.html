@@ -159,15 +159,25 @@
             ]
         },
         {
-            name: "King to E5 Sequence Puzzle", // Updated name
+            name: "King to E5 Puzzle",
             startFen: '6k1/p4p1p/2p4r/2Np1b2/3K1p1P/P2B2n1/1PPR2P1/8 w - - 6 30',
             solution: [
-                { move: 'Ke5', from: 'd4', to: 'e5', description: "White to move." },
-                { move: 'Bxd3', from: 'f5', to: 'd3', description: "Black plays Bxd3. Now White to play.", opponentMove: true },
-                { move: 'cxd3', from: 'c2', to: 'd3', description: "White to move. " } // White's second move
+                { move: 'Ke5', from: 'd4', to: 'e5', description: "New Puzzle: White to move. Find the best move for White." },
+                { move: 'Bxd3', from: 'f5', to: 'd3', description: "What piece should White capture with?", opponentMove: true }, 
+                { move: 'cxd3', from: 'c2', to: 'd3', description: "White to play" }       
             ]
         }
         // Add more puzzles here in the same format
+        /*
+        ,
+        {
+            name: "Another Puzzle",
+            startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            solution: [
+                { move: 'e4', from: 'e2', to: 'e4', description: "Another Puzzle: White to move. Play e4." }
+            ]
+        }
+        */
     ];
 
     let currentPuzzleIndex = 0; // Start with the first puzzle
@@ -314,9 +324,8 @@
         feedbackEl.className = 'correct';
 
         const toSquare = document.querySelector(`.square[data-index='${toIndex}']`);
-        // Remove existing piece if it's a capture (for both player and opponent moves)
         toSquare.innerHTML = '';
-        toSquare.appendChild(draggedElement); // Move the piece
+        toSquare.appendChild(draggedElement);
         highlightMove(fromIndex, toIndex, true);
 
         currentStepIndex++;
@@ -329,26 +338,25 @@
             return;
         }
 
-        // Handle opponent's move if it's the next step
         setTimeout(() => {
-            const nextStep = currentPuzzle.solution[currentStepIndex];
-            if (nextStep && nextStep.opponentMove) {
-                const oppFromIdx = algebraicToIndex(nextStep.from);
-                const oppToIdx = algebraicToIndex(nextStep.to);
+            const opponentMove = currentPuzzle.solution[currentStepIndex]; // Use currentPuzzle
+            if (opponentMove && opponentMove.opponentMove) {
+                const oppFromIdx = algebraicToIndex(opponentMove.from);
+                const oppToIdx = algebraicToIndex(opponentMove.to);
 
                 const oppFromSq = document.querySelector(`.square[data-index='${oppFromIdx}']`);
                 const oppToSq = document.querySelector(`.square[data-index='${oppToIdx}']`);
-                const oppPiece = oppFromSq ? oppFromSq.querySelector('.piece') : null; // Ensure oppFromSq exists
+                const oppPiece = oppFromSq.querySelector('.piece');
 
                 if (oppPiece) {
-                    oppToSq.innerHTML = ''; // Capture opponent's piece if any
+                    oppToSq.innerHTML = '';
                     oppToSq.appendChild(oppPiece);
                 }
-                highlightMove(oppFromIdx, oppToIdx, true); // Highlight opponent's move
+                highlightMove(oppFromIdx, oppToIdx, true);
                 currentStepIndex++;
 
-                if(currentStepIndex < currentPuzzle.solution.length) {
-                    descriptionEl.textContent = currentPuzzle.solution[currentStepIndex].description;
+                if(currentStepIndex < currentPuzzle.solution.length) { // Use currentPuzzle
+                    descriptionEl.textContent = currentPuzzle.solution[currentStepIndex].description; // Use currentPuzzle
                 } else {
                     feedbackEl.textContent = 'Puzzle Complete!';
                     feedbackEl.className = 'success';
@@ -356,9 +364,8 @@
                     puzzleActive = false;
                 }
             }
-        }, 700); // Short delay for opponent's move
+        }, 700);
     }
-
 
     function handleIncorrectMove(fromIndex, toIndex) {
         feedbackEl.textContent = 'Incorrect, try again.';
