@@ -51,20 +51,20 @@
             opacity: 0.5;
             cursor: grabbing;
         }
-        
+
         .white-piece { color: #f8f8f8; text-shadow: 0 1px 3px #000; }
         .black-piece { color: #444444; text-shadow: 0 1px 3px #fff; }
-        
+
         .highlight-correct {
             box-shadow: inset 0 0 15px 5px rgba(76, 175, 80, 0.8);
         }
         .highlight-incorrect {
-             box-shadow: inset 0 0 15px 5px rgba(244, 67, 54, 0.8);
+            box-shadow: inset 0 0 15px 5px rgba(244, 67, 54, 0.8);
         }
         .drag-over {
             background-color: #6a9c78 !important;
         }
-        
+
         #puzzle-info {
             max-width: 300px;
             background-color: #444;
@@ -94,6 +94,12 @@
         .correct { color: #4CAF50; }
         .incorrect { color: #F44336; }
         .success { color: #ffeb3b; }
+        .puzzle-nav-buttons {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: 15px;
+        }
         button {
             background-color: #6a9c78;
             color: white;
@@ -108,6 +114,10 @@
         button:hover {
             background-color: #588a68;
         }
+        button:disabled {
+            background-color: #777;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -119,6 +129,10 @@
         <div id="puzzle-description"></div>
         <div id="feedback"></div>
         <button id="restart-puzzle">Restart Puzzle</button>
+        <div class="puzzle-nav-buttons">
+            <button id="prev-puzzle" disabled>&lt; Previous</button>
+            <button id="next-puzzle">Next &gt;</button>
+        </div>
     </div>
 </div>
 
@@ -127,19 +141,45 @@
     const descriptionEl = document.getElementById('puzzle-description');
     const feedbackEl = document.getElementById('feedback');
     const restartBtn = document.getElementById('restart-puzzle');
+    const prevPuzzleBtn = document.getElementById('prev-puzzle');
+    const nextPuzzleBtn = document.getElementById('next-puzzle');
 
     const pieces = {
         'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
         'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'
     };
-    
-    const puzzle = {
-        startFen: '4r1k1/p1pq2pp/1p1ppr2/n4p2/P1PP1P2/2PBPQ2/6PP/R3R1K1 w - - 2 19',
-        solution: [
-            { move: 'e4', from: 'e3', to: 'e4', description: "White to move. Find the best move for White." }
-        ]
-    };
 
+    // --- ALL PUZZLES DEFINED HERE ---
+    const allPuzzles = [
+        {
+            name: "Original Puzzle",
+            startFen: '4r1k1/p1pq2pp/1p1ppr2/n4p2/P1PP1P2/2PBPQ2/6PP/R3R1K1 w - - 2 19',
+            solution: [
+                { move: 'e4', from: 'e3', to: 'e4', description: "Original Puzzle: White to move. Find the best move for White." }
+            ]
+        },
+        {
+            name: "King to E5 Puzzle",
+            startFen: '6k1/p4p1p/2p4r/2Np1b2/3K1p1P/P2B2n1/1PPR2P1/8 w - - 6 30',
+            solution: [
+                { move: 'Ke5', from: 'd4', to: 'e5', description: "New Puzzle: White to move. Find the best move for White." }
+            ]
+        }
+        // Add more puzzles here in the same format
+        /*
+        ,
+        {
+            name: "Another Puzzle",
+            startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            solution: [
+                { move: 'e4', from: 'e2', to: 'e4', description: "Another Puzzle: White to move. Play e4." }
+            ]
+        }
+        */
+    ];
+
+    let currentPuzzleIndex = 0; // Start with the first puzzle
+    let currentPuzzle; // Will hold the currently loaded puzzle object
     let currentStepIndex = 0;
     let draggedElement = null;
     let startSquareIndex = null;
@@ -165,21 +205,22 @@
             square.addEventListener('dragenter', onDragEnter);
             square.addEventListener('dragleave', onDragLeave);
             square.addEventListener('drop', onDrop);
-            
+
             chessboard.appendChild(square);
         }
     }
 
     function loadPuzzle() {
+        currentPuzzle = allPuzzles[currentPuzzleIndex]; // Get the current puzzle object
         currentStepIndex = 0;
         puzzleActive = true;
         feedbackEl.textContent = '';
         feedbackEl.className = '';
-        descriptionEl.textContent = puzzle.solution[0].description;
-        
-        const fenParts = puzzle.startFen.split(' ');
+        descriptionEl.textContent = currentPuzzle.solution[0].description; // Use currentPuzzle
+
+        const fenParts = currentPuzzle.startFen.split(' '); // Use currentPuzzle
         const boardState = fenParts[0];
-        
+
         document.querySelectorAll('.square').forEach(sq => {
             sq.innerHTML = '';
             sq.classList.remove('white-piece', 'black-piece');
@@ -201,7 +242,7 @@
 
                     pieceElement.addEventListener('dragstart', onDragStart);
                     pieceElement.addEventListener('dragend', onDragEnd);
-                    
+
                     if (char === char.toUpperCase()) {
                         pieceElement.classList.add('white-piece');
                     } else {
@@ -214,6 +255,7 @@
                 file += parseInt(char);
             }
         }
+        updateNavigationButtons();
     }
 
     function onDragStart(e) {
@@ -255,16 +297,16 @@
         const toSquare = e.target.closest('.square');
         if (!toSquare || startSquareIndex === null) return;
         toSquare.classList.remove('drag-over');
-        
+
         const toIndex = toSquare.dataset.index;
         if (startSquareIndex === toIndex) return;
 
         checkSolution(parseInt(startSquareIndex), parseInt(toIndex));
         startSquareIndex = null;
     }
-    
+
     function checkSolution(fromIndex, toIndex) {
-        const currentMove = puzzle.solution[currentStepIndex];
+        const currentMove = currentPuzzle.solution[currentStepIndex]; // Use currentPuzzle
         const expectedFromIndex = algebraicToIndex(currentMove.from);
         const expectedToIndex = algebraicToIndex(currentMove.to);
 
@@ -274,19 +316,19 @@
             handleIncorrectMove(fromIndex, toIndex);
         }
     }
-    
+
     function handleCorrectMove(fromIndex, toIndex) {
         feedbackEl.textContent = 'Correct!';
         feedbackEl.className = 'correct';
-        
+
         const toSquare = document.querySelector(`.square[data-index='${toIndex}']`);
         toSquare.innerHTML = '';
         toSquare.appendChild(draggedElement);
         highlightMove(fromIndex, toIndex, true);
 
         currentStepIndex++;
-        
-        if (currentStepIndex >= puzzle.solution.length) {
+
+        if (currentStepIndex >= currentPuzzle.solution.length) { // Use currentPuzzle
             feedbackEl.textContent = 'Puzzle Complete!';
             feedbackEl.className = 'success';
             descriptionEl.textContent = "Sequence solved!";
@@ -295,11 +337,11 @@
         }
 
         setTimeout(() => {
-            const opponentMove = puzzle.solution[currentStepIndex];
-            if (opponentMove && opponentMove.opponentMove) { // Ensure opponentMove exists
+            const opponentMove = currentPuzzle.solution[currentStepIndex]; // Use currentPuzzle
+            if (opponentMove && opponentMove.opponentMove) {
                 const oppFromIdx = algebraicToIndex(opponentMove.from);
                 const oppToIdx = algebraicToIndex(opponentMove.to);
-                
+
                 const oppFromSq = document.querySelector(`.square[data-index='${oppFromIdx}']`);
                 const oppToSq = document.querySelector(`.square[data-index='${oppToIdx}']`);
                 const oppPiece = oppFromSq.querySelector('.piece');
@@ -310,9 +352,9 @@
                 }
                 highlightMove(oppFromIdx, oppToIdx, true);
                 currentStepIndex++;
-                
-                if(currentStepIndex < puzzle.solution.length) {
-                    descriptionEl.textContent = puzzle.solution[currentStepIndex].description;
+
+                if(currentStepIndex < currentPuzzle.solution.length) { // Use currentPuzzle
+                    descriptionEl.textContent = currentPuzzle.solution[currentStepIndex].description; // Use currentPuzzle
                 } else {
                     feedbackEl.textContent = 'Puzzle Complete!';
                     feedbackEl.className = 'success';
@@ -333,7 +375,7 @@
         const fromSquare = document.querySelector(`.square[data-index='${fromIndex}']`);
         const toSquare = document.querySelector(`.square[data-index='${toIndex}']`);
         const highlightClass = isCorrect ? 'highlight-correct' : 'highlight-incorrect';
-        
+
         if (fromSquare) fromSquare.classList.add(highlightClass);
         if (toSquare) toSquare.classList.add(highlightClass);
 
@@ -343,14 +385,35 @@
         }, 1000);
     }
 
+    function updateNavigationButtons() {
+        prevPuzzleBtn.disabled = (currentPuzzleIndex === 0);
+        nextPuzzleBtn.disabled = (currentPuzzleIndex === allPuzzles.length - 1);
+    }
+
     restartBtn.addEventListener('click', () => {
         createBoard();
-        loadPuzzle();
+        loadPuzzle(); // Reloads the current puzzle
+    });
+
+    nextPuzzleBtn.addEventListener('click', () => {
+        if (currentPuzzleIndex < allPuzzles.length - 1) {
+            currentPuzzleIndex++;
+            createBoard(); // Clear board before loading new puzzle
+            loadPuzzle();
+        }
+    });
+
+    prevPuzzleBtn.addEventListener('click', () => {
+        if (currentPuzzleIndex > 0) {
+            currentPuzzleIndex--;
+            createBoard(); // Clear board before loading new puzzle
+            loadPuzzle();
+        }
     });
 
     // Initial load
     createBoard();
-    loadPuzzle();
+    loadPuzzle(); // Load the first puzzle
 </script>
 
 </body>
